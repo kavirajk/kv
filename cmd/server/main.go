@@ -1,15 +1,18 @@
 package main
 
 import (
-	"fmt"
-	"os"
 	"context"
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
-	"flag"
+	"time"
 
 	"github.com/kavirajk/kv/internal/config"
-	"github.com/kavirajk/kv/internal/server"
+	"github.com/kavirajk/kv/internal/gossip"
 )
 
 func main() {
@@ -31,30 +34,36 @@ func main() {
 
 	fmt.Printf("%+v\n", cfg)
 
-	server, err := server.New(cfg.ListenAddr)
+	server := gossip.New(cfg.ListenAddr, 200*time.Millisecond, cfg.Peers)
 	if err != nil {
 		panic(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	fmt.Println("UDP server listening on: ", cfg.ListenAddr)
 	go server.Loop(ctx)
+	go server.ListenLoop(ctx)
 
-	for _, peer := range cfg.Peers {
-		if err := server.SendPeer(peer.Addr, "PING"); err != nil {
-			panic(err)
-		}
-	}
+	fmt.Println("UDP server listening on: ", cfg.ListenAddr)
+
+	log.Fatal(http.ListenAndServe(cfg.HTTPListen, server))
+
+	// go server.Loop(ctx)
+
+	// for _, peer := range cfg.Peers {
+	// 	if err := server.SendPeer(peer.Addr, "PING"); err != nil {
+	// 		panic(err)
+	// 	}
+	// }
 
 	sig := make(chan os.Signal)
 	signal.Notify(sig, syscall.SIGINT)
 
 	select {
-	case sg := <- sig:
+	case sg := <-sig:
 		fmt.Printf("Signal received: %s. stopping server\n", sg)
 		cancel()
-	case err := <- ctx.Done():
+	case err := <-ctx.Done():
 		fmt.Printf("context canceled: %q\n", err)
 	}
 }

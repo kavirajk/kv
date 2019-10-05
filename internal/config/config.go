@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Peers []Peer `yaml:"peers"`
 	ListenAddr string `yaml:"listenAddr"`
+	HTTPListen string `yaml:"httpListen"`
 }
 
 type Peer struct {
