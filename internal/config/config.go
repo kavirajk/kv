@@ -3,19 +3,15 @@ package config
 import (
 	"io/ioutil"
 	"os"
-	
+
 	"github.com/go-yaml/yaml"
 	"github.com/pkg/errors"
 )
 
 type Config struct {
-	Peers []Peer `yaml:"peers"`
-	ListenAddr string `yaml:"listenAddr"`
-	HTTPListen string `yaml:"httpListen"`
-}
-
-type Peer struct {
-	Addr string `yaml:"addr"`
+	Peers      []string `yaml:"peers"`
+	ListenAddr string   `yaml:"listenAddr"`
+	HTTPListen string   `yaml:"httpListen"`
 }
 
 func Load(filename string) (*Config, error) {

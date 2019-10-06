@@ -1,18 +1,16 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/kavirajk/kv/internal/cluster"
 	"github.com/kavirajk/kv/internal/config"
-	"github.com/kavirajk/kv/internal/gossip"
+	kvhttp "github.com/kavirajk/kv/internal/http"
 )
 
 func main() {
@@ -34,19 +32,30 @@ func main() {
 
 	fmt.Printf("%+v\n", cfg)
 
-	server := gossip.New(cfg.ListenAddr, 200*time.Millisecond, cfg.Peers)
+	logger := log.NewJSONLogger(os.Stdout)
+
+	peer, err := cluster.NewPeer(log.With(logger, "component", "peer"), cfg.ListenAddr, cfg.Peers)
 	if err != nil {
-		panic(err)
+		panic("failed to create cluster")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		for {
+			fmt.Println(peer.Members())
+			time.Sleep(3 * time.Second)
+		}
+	}()
 
-	go server.Loop(ctx)
-	go server.ListenLoop(ctx)
+	server := kvhttp.NewServer(peer, log.With(logger, "component", "server"))
 
-	fmt.Println("UDP server listening on: ", cfg.ListenAddr)
+	// ctx, cancel := context.WithCancel(context.Background())
 
-	log.Fatal(http.ListenAndServe(cfg.HTTPListen, server))
+	// go server.Loop(ctx)
+	// go server.ListenLoop(ctx)
+
+	fmt.Println("HTTP server listening on: ", cfg.HTTPListen)
+
+	http.ListenAndServe(cfg.HTTPListen, server)
 
 	// go server.Loop(ctx)
 
@@ -56,14 +65,14 @@ func main() {
 	// 	}
 	// }
 
-	sig := make(chan os.Signal)
-	signal.Notify(sig, syscall.SIGINT)
+	// sig := make(chan os.Signal)
+	// signal.Notify(sig, syscall.SIGINT)
 
-	select {
-	case sg := <-sig:
-		fmt.Printf("Signal received: %s. stopping server\n", sg)
-		cancel()
-	case err := <-ctx.Done():
-		fmt.Printf("context canceled: %q\n", err)
-	}
+	// select {
+	// case sg := <-sig:
+	// 	fmt.Printf("Signal received: %s. stopping server\n", sg)
+	// 	cancel()
+	// case err := <-ctx.Done():
+	// 	fmt.Printf("context canceled: %q\n", err)
+	// }
 }
